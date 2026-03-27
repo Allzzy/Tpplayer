@@ -1,0 +1,270 @@
+-- =============================================
+-- TP TO PLAYER MENU (Xeno Executor Ready) - UPDATED
+-- Fitur: Pilih player + Search + Refresh + Minimize + Exit + AUTO TP (ON/OFF)
+-- Style mirip Nich Hub (dark theme + gradient)
+-- =============================================
+
+local player = game.Players.LocalPlayer
+local pgui = player:WaitForChild("PlayerGui")
+
+-- Hapus menu lama kalau ada
+if pgui:FindFirstChild("NiCH_TP_Menu") then
+    pgui.NiCH_TP_Menu:Destroy()
+end
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "NiCH_TP_Menu"
+sg.ResetOnSpawn = false
+sg.IgnoreGuiInset = true
+sg.Parent = pgui
+
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 220, 0, 360)  -- diperbesar sedikit buat tombol auto
+main.Position = UDim2.new(0.5, -110, 0.3, 0)
+main.BackgroundColor3 = Color3.fromRGB(8, 0, 20)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+
+-- Gradient background
+local gradient = Instance.new("UIGradient", main)
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 0, 85)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 0, 38)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 0, 15))
+}
+gradient.Rotation = 135
+
+-- Title Bar
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 0, 40)
+titleBar.BorderSizePixel = 0
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "NiCH TP TO PLAYER"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+
+-- Minimize & Exit Button
+local minBtn = Instance.new("TextButton", titleBar)
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -70, 0, 5)
+minBtn.BackgroundTransparency = 1
+minBtn.Text = "−"
+minBtn.TextColor3 = Color3.new(1, 1, 1)
+minBtn.TextSize = 24
+minBtn.Font = Enum.Font.GothamBold
+
+local exitBtn = Instance.new("TextButton", titleBar)
+exitBtn.Size = UDim2.new(0, 30, 0, 30)
+exitBtn.Position = UDim2.new(1, -35, 0, 5)
+exitBtn.BackgroundTransparency = 1
+exitBtn.Text = "✕"
+exitBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+exitBtn.TextSize = 20
+exitBtn.Font = Enum.Font.GothamBold
+exitBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
+
+-- Search Box
+local searchBox = Instance.new("TextBox", main)
+searchBox.Size = UDim2.new(1, -30, 0, 35)
+searchBox.Position = UDim2.new(0, 15, 0, 50)
+searchBox.BackgroundColor3 = Color3.fromRGB(30, 0, 50)
+searchBox.PlaceholderText = "🔎 Cari nama player..."
+searchBox.Text = ""
+searchBox.TextColor3 = Color3.new(1, 1, 1)
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 14
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 8)
+
+-- Scrolling Player List
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Size = UDim2.new(1, -30, 0, 165)
+scroll.Position = UDim2.new(0, 15, 0, 95)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 6
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local listLayout = Instance.new("UIListLayout", scroll)
+listLayout.Padding = UDim.new(0, 6)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Selected Label
+local selectedLabel = Instance.new("TextLabel", main)
+selectedLabel.Size = UDim2.new(1, -30, 0, 25)
+selectedLabel.Position = UDim2.new(0, 15, 0, 270)
+selectedLabel.BackgroundTransparency = 1
+selectedLabel.Text = "Selected: None"
+selectedLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+selectedLabel.Font = Enum.Font.GothamSemibold
+selectedLabel.TextSize = 13
+
+local selectedPlayerName = ""
+
+-- === AUTO TP Variables ===
+local autoTPEnabled = false
+local autoTPConnection = nil
+
+local RunService = game:GetService("RunService")
+
+local function startAutoTP()
+    if autoTPConnection then return end
+    
+    autoTPConnection = RunService.Heartbeat:Connect(function()
+        if not autoTPEnabled then return end
+        if selectedPlayerName == "" then return end
+        
+        local target = game.Players:FindFirstChild(selectedPlayerName)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+    end)
+end
+
+local function stopAutoTP()
+    if autoTPConnection then
+        autoTPConnection:Disconnect()
+        autoTPConnection = nil
+    end
+end
+
+-- Fungsi Update List
+local function updatePlayerList()
+    for _, child in pairs(scroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    local filterText = searchBox.Text:lower()
+    local count = 0
+
+    for _, plr in pairs(game.Players:GetPlayers()) do
+        if plr ~= player then
+            local displayName = plr.DisplayName or plr.Name
+            if filterText == "" or displayName:lower():find(filterText) then
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 35)
+                btn.BackgroundColor3 = Color3.fromRGB(40, 0, 65)
+                btn.Text = " " .. displayName
+                btn.TextColor3 = Color3.new(1, 1, 1)
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 14
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+                btn.Parent = scroll
+
+                btn.MouseButton1Click:Connect(function()
+                    selectedPlayerName = plr.Name
+                    selectedLabel.Text = "Selected: " .. displayName
+                end)
+                count = count + 1
+            end
+        end
+    end
+    scroll.CanvasSize = UDim2.new(0, 0, 0, count * 41)
+end
+
+-- Tombol GOTO (manual)
+local gotoBtn = Instance.new("TextButton", main)
+gotoBtn.Size = UDim2.new(0.48, -10, 0, 40)
+gotoBtn.Position = UDim2.new(0, 15, 0, 305)
+gotoBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
+gotoBtn.Text = "🚀 GOTO"
+gotoBtn.TextColor3 = Color3.new(1, 1, 1)
+gotoBtn.Font = Enum.Font.GothamBold
+gotoBtn.TextSize = 16
+Instance.new("UICorner", gotoBtn).CornerRadius = UDim.new(0, 10)
+
+gotoBtn.MouseButton1Click:Connect(function()
+    if selectedPlayerName ~= "" then
+        local target = game.Players:FindFirstChild(selectedPlayerName)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        else
+            selectedLabel.Text = "Selected: Player not found!"
+        end
+    end
+end)
+
+-- Tombol AUTO TP Toggle
+local autoBtn = Instance.new("TextButton", main)
+autoBtn.Size = UDim2.new(0.48, -10, 0, 40)
+autoBtn.Position = UDim2.new(0.52, 0, 0, 305)
+autoBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)  -- merah = OFF
+autoBtn.Text = "AUTO TP: OFF"
+autoBtn.TextColor3 = Color3.new(1, 1, 1)
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.TextSize = 15
+Instance.new("UICorner", autoBtn).CornerRadius = UDim.new(0, 10)
+
+autoBtn.MouseButton1Click:Connect(function()
+    autoTPEnabled = not autoTPEnabled
+    
+    if autoTPEnabled then
+        autoBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 80)  -- hijau
+        autoBtn.Text = "AUTO TP: ON"
+        startAutoTP()
+    else
+        autoBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+        autoBtn.Text = "AUTO TP: OFF"
+        stopAutoTP()
+    end
+end)
+
+-- Tombol REFRESH
+local refreshBtn = Instance.new("TextButton", main)
+refreshBtn.Size = UDim2.new(0.5, -20, 0, 35)
+refreshBtn.Position = UDim2.new(0, 15, 0, 355)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+refreshBtn.Text = "🔄 REFRESH LIST"
+refreshBtn.TextColor3 = Color3.new(1, 1, 1)
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.TextSize = 14
+Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 10)
+refreshBtn.MouseButton1Click:Connect(updatePlayerList)
+
+-- Minimize logic
+local minimized = false
+local originalSize = main.Size
+
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        minBtn.Text = "+"
+        scroll.Visible = false
+        searchBox.Visible = false
+        selectedLabel.Visible = false
+        gotoBtn.Visible = false
+        autoBtn.Visible = false
+        refreshBtn.Visible = false
+        main.Size = UDim2.new(0, 220, 0, 40)
+    else
+        minBtn.Text = "−"
+        scroll.Visible = true
+        searchBox.Visible = true
+        selectedLabel.Visible = true
+        gotoBtn.Visible = true
+        autoBtn.Visible = true
+        refreshBtn.Visible = true
+        main.Size = originalSize
+        updatePlayerList()
+    end
+end)
+
+-- Search otomatis
+searchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
+
+-- Load pertama
+updatePlayerList()
+
+print("✅ NiCH TP TO PLAYER Menu + Auto TP berhasil dimuat! (Xeno Executor)")
